@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>The Wok | Membership</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- QR Code -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f0f0f, #1a1a1a);
+      color: white;
+      text-align: center;
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: bold;
+      margin-top: 20px;
+      color: #ff8c00;
+      letter-spacing: 2px;
+    }
+
+    h2 {
+      margin-top: 10px;
+      font-weight: 400;
+    }
+
+    .container {
+      max-width: 400px;
+      margin: auto;
+      padding: 20px;
+    }
+
+    input {
+      width: 90%;
+      padding: 12px;
+      margin: 8px;
+      border-radius: 8px;
+      border: none;
+      background: #222;
+      color: white;
+      font-size: 16px;
+    }
+
+    button {
+      width: 95%;
+      padding: 12px;
+      margin: 10px 0;
+      border-radius: 10px;
+      border: none;
+      font-size: 16px;
+      font-weight: bold;
+      background: linear-gradient(45deg, #ff8c00, #ff5e00);
+      color: white;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px rgba(255,140,0,0.5);
+    }
+
+    .card {
+      background: linear-gradient(135deg, #1e1e1e, #2c2c2c);
+      padding: 20px;
+      margin-top: 20px;
+      border-radius: 16px;
+      box-shadow: 0 0 25px rgba(255,140,0,0.3);
+    }
+
+    .tier {
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .points {
+      font-size: 16px;
+      opacity: 0.8;
+    }
+
+    canvas {
+      margin-top: 15px;
+      background: white;
+      padding: 10px;
+      border-radius: 12px;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="logo">🔥 THE WOK</div>
+
+<div class="container">
+
+  <!-- AUTH -->
+  <div id="auth">
+    <h2>Welcome Back</h2>
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <button onclick="signup()">Create Account</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="hidden">
+    <h2 id="userEmail"></h2>
+
+    <div class="card">
+      <div class="tier" id="tier"></div>
+      <div class="points">Points: <span id="points"></span></div>
+    </div>
+
+    <canvas id="qr"></canvas>
+
+    <button onclick="addPoints()">Earn Points</button>
+    <button onclick="logout()">Logout</button>
+  </div>
+
+</div>
+
+<!-- FIREBASE + APP -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "YOUR_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// INPUT HELPERS
+function emailInput() {
+  return document.getElementById("email").value;
+}
+
+function passInput() {
+  return document.getElementById("password").value;
+}
+
+// SIGNUP
+window.signup = async function() {
+  const userCred = await createUserWithEmailAndPassword(auth, emailInput(), passInput());
+
+  await setDoc(doc(db, "users", userCred.user.uid), {
+    tier: "Basic",
+    points: 0
+  });
+};
+
+// LOGIN
+window.login = async function() {
+  await signInWithEmailAndPassword(auth, emailInput(), passInput());
+};
+
+// LOGOUT
+window.logout = async function() {
+  await signOut(auth);
+};
+
+// ADD POINTS
+window.addPoints = async function() {
+  const uid = auth.currentUser.uid;
+  const userRef = doc(db, "users", uid);
+
+  const snap = await getDoc(userRef);
+  const data = snap.data();
+
+  const newPoints = data.points + 50;
+  const newTier = getTier(newPoints);
+
+  await updateDoc(userRef, {
+    points: newPoints,
+    tier: newTier
+  });
+};
+
+// TIERS
+function getTier(points) {
+  if (points > 1000) return "Diamond";
+  if (points > 700) return "Platinum";
+  if (points > 500) return "Gold";
+  if (points > 300) return "Silver";
+  if (points > 100) return "Copper";
+  return "Basic";
+}
+
+// UI UPDATE
+function updateUI(user, data) {
+  document.getElementById("auth").classList.add("hidden");
+  document.getElementById("dashboard").classList.remove("hidden");
+
+  document.getElementById("userEmail").innerText = user.email;
+  document.getElementById("tier").innerText = data.tier + " Member";
+  document.getElementById("points").innerText = data.points;
+
+  // Tier colors
+  const tierColors = {
+    Basic: "#888",
+    Copper: "#b87333",
+    Silver: "#c0c0c0",
+    Gold: "#ffd700",
+    Platinum: "#e5e4e2",
+    Diamond: "#00e5ff"
+  };
+
+  document.getElementById("tier").style.color = tierColors[data.tier] || "white";
+
+  // QR Code
+  QRCode.toCanvas(document.getElementById("qr"), user.uid);
+}
+
+// AUTH STATE
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    const ref = doc(db, "users", user.uid);
+
+    onSnapshot(ref, (docSnap) => {
+      updateUI(user, docSnap.data());
+    });
+
+  } else {
+    document.getElementById("auth").classList.remove("hidden");
+    document.getElementById("dashboard").classList.add("hidden");
+  }
+});
+</script>
+
+</body>
+</html>
